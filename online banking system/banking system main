@@ -1,0 +1,200 @@
+import mysql.connector
+
+# Database setup
+def create_database():
+    try:
+        mydb = mysql.connector.connect(host="localhost", user="root", password="25k8809faris")
+        mycursor = mydb.cursor()
+        mycursor.execute("CREATE DATABASE IF NOT EXISTS bank")
+        mycursor.execute("USE bank")
+        mycursor.execute("""
+            CREATE TABLE IF NOT EXISTS accounts (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                account_number VARCHAR(50),
+                account_holder VARCHAR(255),
+                balance DECIMAL(10, 2)
+            )
+        """)
+        mydb.commit()
+    except mysql.connector.Error as err:
+        print(f"Something went wrong: {err}")
+    finally:
+        mycursor.close()
+        mydb.close()
+
+class Account:
+    def __init__(self, account_number, account_holder, balance=0.0):
+        self.account_number = account_number
+        self.account_holder = account_holder
+        self.balance = balance
+
+    def __str__(self):
+        balance_str = f"${self.balance:.2f}" if self.balance is not None else "$0.00"
+        return f"Account Number: {self.account_number}, Account Holder: {self.account_holder}, Balance: {balance_str}"
+
+class Bank:
+    def __init__(self):
+        # Ensure you are connecting to the correct database (bank, not banking)
+        self.db_config = {
+            "host": "localhost",
+            "user": "root",
+            "password": "25k8809faris",
+            "database": "bank"
+        }
+
+    def create_account(self, account):
+        mydb = mysql.connector.connect(**self.db_config)
+        mycursor = mydb.cursor()
+        sql = "INSERT INTO accounts (account_number, account_holder, balance) VALUES (%s, %s, %s)"
+        mycursor.execute(sql, (account.account_number, account.account_holder, account.balance))
+        mydb.commit()
+        print("WELCOME TO OUR ONLINE BANKING SYSTEM")
+        print(f"Account '{account.account_holder}' created successfully.")
+        mycursor.close()
+        mydb.close()
+
+    def deposit(self, account_number, amount):
+        mydb = mysql.connector.connect(**self.db_config)
+        mycursor = mydb.cursor()
+        sql = "UPDATE accounts SET balance = balance + %s WHERE account_number = %s"
+        mycursor.execute(sql, (amount, account_number))
+        mydb.commit()
+        if mycursor.rowcount > 0:
+            print(f"Deposited ${amount:.2f} into account number {account_number}.")
+        else:
+            print("Account not found.")
+        mycursor.close()
+        mydb.close()
+
+    def withdraw(self, account_number, amount):
+        mydb = mysql.connector.connect(**self.db_config)
+        mycursor = mydb.cursor()
+        sql = "UPDATE accounts SET balance = balance - %s WHERE account_number = %s AND balance >= %s"
+        mycursor.execute(sql, (amount, account_number, amount))
+        mydb.commit()
+        if mycursor.rowcount > 0:
+            print(f"Withdrew ${amount:.2f} from account number {account_number}.")
+        else:
+            print("Insufficient balance or account not found.")
+        mycursor.close()
+        mydb.close()
+
+    def get_account(self, account_number):
+        mydb = mysql.connector.connect(**self.db_config)
+        mycursor = mydb.cursor()
+        sql = "SELECT account_number, account_holder, balance FROM accounts WHERE account_number = %s"
+        mycursor.execute(sql, (account_number,))
+        result = mycursor.fetchone()
+        mycursor.close()
+        mydb.close()
+        
+        if result:
+            account = Account(result[0], result[1], result[2])  # Fix account object creation
+            return account
+        return None
+
+    def display_accounts(self):
+        mydb = mysql.connector.connect(**self.db_config)
+        mycursor = mydb.cursor()
+        mycursor.execute("SELECT account_number, account_holder, balance FROM accounts")
+        accounts = mycursor.fetchall()
+        mycursor.close()
+        mydb.close()
+
+        if accounts:
+            print("Accounts in the Bank:")
+            for row in accounts:
+                print(f"Account Number: {row[0]}, Account Holder: {row[1]}, Balance: ${row[2]:.2f}")
+        else:
+            print("No accounts found.")
+
+class User:
+    def __init__(self, username, password):
+        self.username = username
+        self.password = password
+
+class BankSystem:
+    def __init__(self):
+        self.bank = Bank()
+        self.admin = User("admin", "1234")
+        self.current_user = None
+
+    def login(self):
+        username = input("Enter username: ")
+        password = input("Enter password: ")
+        if username == self.admin.username and password == self.admin.password:
+            self.current_user = self.admin
+            print("Admin logged in successfully.")
+        else:
+            print("Invalid credentials. Try again.")
+
+    def logout(self):
+        self.current_user = None
+        print("Logged out successfully.")
+
+    def admin_operations(self):
+        while True:
+            choice = input("\nAdmin Menu: \n1. Create Account\n2. Display Accounts\n3. Logout\nChoose an option: ")
+            if choice == '1':
+                account_number = input('Enter the account number: ')
+                account_holder = input('Enter the account holder name: ')
+                account = Account(account_number, account_holder)
+                self.bank.create_account(account)
+            elif choice == '2':
+                self.bank.display_accounts()
+            elif choice == '3':
+                self.logout()
+                break
+            else:
+                print("Invalid option. Please try again.")
+
+    def user_operations(self):
+        while True:
+            print("WELCOME TO ONLINE BANKING SYSTEM ")
+            print("CHOOSE YOUR OPTION")
+            choice = input("\nUser Menu: \n1. Deposit\n2. Withdraw\n3. Check Balance\n4. Logout\nChoose an option: ")
+            if choice == '1':
+                account_number = input('Enter your account number: ')
+                amount = float(input('Enter the amount to deposit: '))
+                self.bank.deposit(account_number, amount)
+            elif choice == '2':
+                account_number = input('Enter your account number: ')
+                amount = float(input('Enter the amount to withdraw: '))
+                self.bank.withdraw(account_number, amount)
+            elif choice == '3':
+                account_number = input('Enter your account number: ')
+                account = self.bank.get_account(account_number)
+                if account:
+                    print(account)
+                else:
+                    print("Account not found.")
+            elif choice == '4':
+                self.logout()
+                break
+            else:
+                print("Invalid option. Please try again.")
+
+    def run(self):
+        while True:
+            choice = input("1. Login as Admin\n2. Login as User\n3. Exit\nChoose an option: ")
+            if choice == '1':
+                self.login()
+                if self.current_user:
+                    self.admin_operations()
+            elif choice == '2':
+                self.current_user = User("user", "user123")  # Simplified for this example
+                print("User logged in successfully.")
+                self.user_operations()
+            elif choice == '3':
+                print("Thank you vist again")
+                break
+            else:
+                print("Invalid option. Please try again.")
+
+# Create database and run the Bank Management System
+if __name__ == "__main__":
+    create_database()
+    system = BankSystem()
+    system.run()
+
+
